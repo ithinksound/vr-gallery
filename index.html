@@ -9,24 +9,25 @@
     <script src="https://unpkg.com/super-hands@3.0.3/dist/super-hands.min.js"></script>
     
     <script>
+      // detect what device we're running on
       const isVisionPro = /VisionOS|Apple Vision/i.test(navigator.userAgent);
       const isQuest = /Quest|Oculus/i.test(navigator.userAgent);
       const isMobile = /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent);
       
-      console.log(`Device Detection:`, {
+      console.log('Device Detection:', {
         isVisionPro,
         isQuest,
         isMobile,
         userAgent: navigator.userAgent
       });
 
-      //teleportation 
+      // teleportation that works across different devices
       AFRAME.registerComponent('universal-teleport', {
         init: function() {
           const el = this.el;
           const camera = document.querySelector('#camera');
           
-          // Quest 3: Thumbstick teleport
+          // on quest, use the thumbstick
           if (isQuest) {
             el.addEventListener('thumbstickmoved', (evt) => {
               if (evt.detail.y < -0.5) {
@@ -35,12 +36,12 @@
             });
           }
           
-          // Vision Pro & Desktop
+          // vision pro and desktop can click to move
           el.addEventListener('click', () => {
             this.teleportForward(camera);
           });
           
-          // Vision Pro: Hand pinch gesture
+          // vision pro pinch gesture support
           el.addEventListener('pinchstart', () => {
             this.teleportForward(camera);
           });
@@ -60,6 +61,52 @@
           }
         }
       });
+
+      // Teleport marker component - click to teleport to specific location
+      AFRAME.registerComponent('teleport-marker', {
+        schema: {
+          targetX: {default: 0},
+          targetZ: {default: 0}
+        },
+        init: function() {
+          const data = this.data;
+          const camera = document.querySelector('#camera');
+          
+          // Hover effects
+          this.el.addEventListener('mouseenter', () => {
+            this.el.setAttribute('material', 'opacity', 0.8);
+            this.el.setAttribute('scale', '1.2 1 1.2');
+          });
+          
+          this.el.addEventListener('mouseleave', () => {
+            this.el.setAttribute('material', 'opacity', 0.4);
+            this.el.setAttribute('scale', '1 1 1');
+          });
+          
+          // Click to teleport
+          this.el.addEventListener('click', () => {
+            console.log(`🚀 Teleporting to: ${data.targetX}, ${data.targetZ}`);
+            camera.object3D.position.x = data.targetX;
+            camera.object3D.position.z = data.targetZ;
+            
+            // Visual feedback
+            this.el.setAttribute('animation', {
+              property: 'material.opacity',
+              from: 1,
+              to: 0.4,
+              dur: 300
+            });
+          });
+          
+          // Gaze cursor interaction (Vision Pro)
+          this.el.addEventListener('fusing', () => {
+            this.el.setAttribute('material', 'opacity', 0.8);
+            this.el.setAttribute('scale', '1.2 1 1.2');
+          });
+        }
+      });
+
+      // gaze cursor for vision pro - look at something to select it
       AFRAME.registerComponent('gaze-cursor', {
         schema: {
           fuseTime: {default: 1500}
@@ -75,13 +122,13 @@
         }
       });
 
-      // grab - works with hand or controller
+      // grab objects with either controllers or hands
       AFRAME.registerComponent('universal-grab', {
         init: function() {
           this.grabbed = false;
           this.grabber = null;
           
-          // Quest controllers
+          // quest controllers use grip buttons
           this.el.addEventListener('gripdown', (evt) => {
             this.grab(evt.detail.hand);
           });
@@ -90,7 +137,7 @@
             this.release();
           });
           
-          // Vision Pro hands / Desktop click
+          // desktop or vision pro can just click
           this.el.addEventListener('click', () => {
             if (!this.grabbed) {
               this.grab(document.querySelector('#camera'));
@@ -99,7 +146,7 @@
             }
           });
           
-          // pinch gesture 
+          // pinch gesture for vision pro
           this.el.addEventListener('pinchstart', (evt) => {
             this.grab(evt.target);
           });
@@ -113,17 +160,17 @@
           this.grabbed = true;
           this.grabber = grabber;
           this.el.emit('grabbed');
-          console.log(' Object grabbed:', this.el.id);
+          console.log('Object grabbed:', this.el.id);
         },
         
         release: function() {
           this.grabbed = false;
           this.el.emit('released');
-          console.log(' Object released:', this.el.id);
+          console.log('Object released:', this.el.id);
         }
       });
 
-      // interactive light switch
+      // toggle light switch
       AFRAME.registerComponent('light-switch', {
         schema: {
           target: {type: 'selector'}
@@ -142,7 +189,7 @@
         }
       });
 
-      // info panel toggle 
+      // show/hide info panels
       AFRAME.registerComponent('info-panel', {
         init: function() {
           const panel = document.querySelector('#info-text');
@@ -156,7 +203,7 @@
         }
       });
 
-      // audio
+      // background audio
       AFRAME.registerComponent('ambient-audio', {
         init: function() {
           const context = new (window.AudioContext || window.webkitAudioContext)();
@@ -180,22 +227,54 @@
         }
       });
 
-      // Model loading
+      // screenshot mode toggle
+      document.addEventListener('keydown', (evt) => {
+        if (evt.key === 'h' || evt.key === 'H') {
+          const gazeCursor = document.querySelector('#gaze-cursor');
+          const leftHand = document.querySelector('#leftHand');
+          const rightHand = document.querySelector('#rightHand');
+          const teleportMarkers = document.querySelectorAll('[teleport-marker]');
+          
+          if (gazeCursor) {
+            const isVisible = gazeCursor.getAttribute('visible');
+            gazeCursor.setAttribute('visible', !isVisible);
+          }
+          
+          if (leftHand) {
+            const isVisible = leftHand.getAttribute('visible');
+            leftHand.setAttribute('visible', !isVisible);
+          }
+          
+          if (rightHand) {
+            const isVisible = rightHand.getAttribute('visible');
+            rightHand.setAttribute('visible', !isVisible);
+          }
+          
+          teleportMarkers.forEach(marker => {
+            const isVisible = marker.getAttribute('visible');
+            marker.setAttribute('visible', !isVisible);
+          });
+          
+          console.log('Screenshot mode toggled');
+        }
+      });
+
+      // load the 3d models
       document.addEventListener('DOMContentLoaded', () => {
-        // Log device info
-        console.log(`Controls Mode:`, isVisionPro ? 'Vision Pro (Hands/Gaze)' : isQuest ? 'Quest 3 (Controllers)' : 'Desktop (Mouse)');
+        // log which control scheme we're using
+        console.log('Controls Mode:', isVisionPro ? 'Vision Pro (Hands/Gaze)' : isQuest ? 'Quest 3 (Controllers)' : 'Desktop (Mouse)');
         
-        // Benches
+        // check if benches loaded correctly
         for (let i = 1; i <= 4; i++) {
           const benchModel = document.querySelector(`#bench-model-${i}`);
           if (benchModel) {
             benchModel.addEventListener('model-loaded', () => {
-              console.log(`Bench ${i} loaded`);
+              console.log('Bench ' + i + ' loaded');
             });
           }
         }
         
-        // Magazines
+        // check if magazines loaded
         const magazines = document.querySelector('#magazines');
         if (magazines) {
           magazines.addEventListener('model-loaded', () => {
@@ -212,10 +291,9 @@
       shadow="type: pcfsoft">
 
       <a-assets>
-        <img id="art-main" src="https://images.unsplash.com/photo-1541963463532-d68292c34b19?auto=format&fit=crop&w=1000&q=80">
-        <img id="art-side-1" src="https://images.unsplash.com/photo-1501084817091-a4f3d1d19e07?auto=format&fit=crop&w=1000&q=80">
-        <img id="art-side-2" src="https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=1000&q=80">
-        <img id="tv-texture" src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1000&q=80">
+        <img id="art-main" src="https://i0.wp.com/blog.artsper.com/wp-content/uploads/2024/09/Vincent_van_Gogh_-_Self-Portrait_-_Google_Art_Project-4.jpg?fit=520%2C632&ssl=1">
+        <img id="art-side-1" src="https://cdn.topofart.com/images/artists/Claude_Oscar_Monet/paintings-wm/monet018.jpg">
+        <img id="art-side-2" src="https://cdn.topofart.com/images/artists/John_William_Waterhouse/paintings-wm/waterhouse001.jpg">
         <img id="marble" src="https://images.unsplash.com/photo-1599026466981-22d7183e8568?auto=format&fit=crop&w=500&q=60">
       </a-assets>
 
@@ -403,21 +481,79 @@
          </a-entity>
       </a-entity>
 
-      <!-- Interactive TV -->
-      <a-entity position="0 1.8 -5.8" rotation="0 0 0">
-        <a-box width="2.8" height="1.6" depth="0.1" color="#111" shadow="cast: true">
-             <a-plane position="0 0 0.06" width="2.7" height="1.5" src="#tv-texture" material="shader: flat"></a-plane>
-             
-             <a-sphere 
-                position="1.3 -0.8 0.1" 
-                radius="0.1" 
-                color="#333"
-                class="clickable"
-                ambient-audio>
-                <a-cone position="0 0 0.05" rotation="0 0 -90" radius-bottom="0.04" radius-top="0" height="0.08" color="#fff"></a-cone>
-             </a-sphere>
-        </a-box>
-      </a-entity>
+      <!-- Teleport Markers - Gaze or click to teleport -->
+      
+      <!-- Marker 1: Center front (starting position) -->
+      <a-cylinder 
+         position="0 0.01 4" 
+         radius="0.4" height="0.02" 
+         color="#2196F3" 
+         material="opacity: 0.4; transparent: true; emissive: #2196F3; emissiveIntensity: 0.5"
+         class="clickable"
+         teleport-marker="targetX: 0; targetZ: 4"
+         animation="property: rotation; to: 0 360 0; loop: true; dur: 8000; easing: linear">
+         <a-ring position="0 0.01 0" radius-inner="0.35" radius-outer="0.4" color="#fff" opacity="0.6"></a-ring>
+      </a-cylinder>
+      
+      <!-- Marker 2: Front of Bench 1 (main viewing position) -->
+      <a-cylinder 
+         position="0 0.01 1.5" 
+         radius="0.4" height="0.02" 
+         color="#2196F3" 
+         material="opacity: 0.4; transparent: true; emissive: #2196F3; emissiveIntensity: 0.5"
+         class="clickable"
+         teleport-marker="targetX: 0; targetZ: 1.5"
+         animation="property: rotation; to: 0 360 0; loop: true; dur: 8000; easing: linear">
+         <a-ring position="0 0.01 0" radius-inner="0.35" radius-outer="0.4" color="#fff" opacity="0.6"></a-ring>
+      </a-cylinder>
+      
+      <!-- Marker 3: In front of left artwork -->
+      <a-cylinder 
+         position="-4.5 0.01 0" 
+         radius="0.4" height="0.02" 
+         color="#2196F3" 
+         material="opacity: 0.4; transparent: true; emissive: #2196F3; emissiveIntensity: 0.5"
+         class="clickable"
+         teleport-marker="targetX: -4.5; targetZ: 0"
+         animation="property: rotation; to: 0 360 0; loop: true; dur: 8000; easing: linear">
+         <a-ring position="0 0.01 0" radius-inner="0.35" radius-outer="0.4" color="#fff" opacity="0.6"></a-ring>
+      </a-cylinder>
+      
+      <!-- Marker 4: In front of right artwork -->
+      <a-cylinder 
+         position="4.5 0.01 0" 
+         radius="0.4" height="0.02" 
+         color="#2196F3" 
+         material="opacity: 0.4; transparent: true; emissive: #2196F3; emissiveIntensity: 0.5"
+         class="clickable"
+         teleport-marker="targetX: 4.5; targetZ: 0"
+         animation="property: rotation; to: 0 360 0; loop: true; dur: 8000; easing: linear">
+         <a-ring position="0 0.01 0" radius-inner="0.35" radius-outer="0.4" color="#fff" opacity="0.6"></a-ring>
+      </a-cylinder>
+      
+      <!-- Marker 5: Near sculpture -->
+      <a-cylinder 
+         position="-3 0.01 -3" 
+         radius="0.4" height="0.02" 
+         color="#2196F3" 
+         material="opacity: 0.4; transparent: true; emissive: #2196F3; emissiveIntensity: 0.5"
+         class="clickable"
+         teleport-marker="targetX: -3; targetZ: -3"
+         animation="property: rotation; to: 0 360 0; loop: true; dur: 8000; easing: linear">
+         <a-ring position="0 0.01 0" radius-inner="0.35" radius-outer="0.4" color="#fff" opacity="0.6"></a-ring>
+      </a-cylinder>
+      
+      <!-- Marker 6: Back center (facing main artwork) -->
+      <a-cylinder 
+         position="0 0.01 -4.5" 
+         radius="0.4" height="0.02" 
+         color="#2196F3" 
+         material="opacity: 0.4; transparent: true; emissive: #2196F3; emissiveIntensity: 0.5"
+         class="clickable"
+         teleport-marker="targetX: 0; targetZ: -4.5"
+         animation="property: rotation; to: 0 360 0; loop: true; dur: 8000; easing: linear">
+         <a-ring position="0 0.01 0" radius-inner="0.35" radius-outer="0.4" color="#fff" opacity="0.6"></a-ring>
+      </a-cylinder>
 
       <!-- Light control panel -->
       <a-entity position="5 1.5 -5" rotation="0 45 0">
@@ -432,7 +568,7 @@
         </a-box>
       </a-entity>
 
-      <!-- Camera Rig - Universal -->
+      <!-- Camera Rig - Universal (Quest, Vision Pro, Desktop) -->
       <a-entity id="rig" position="0 0 5">
         <a-entity 
            id="camera" 
@@ -440,23 +576,60 @@
            position="0 1.6 0" 
            look-controls="pointerLockEnabled: false">
            
-           <!-- Vision Pro: Gaze cursor -->
+           <!-- Vision Pro: Enhanced gaze cursor with visual feedback -->
            <a-entity 
+              id="gaze-cursor"
               cursor="fuse: true; fuseTimeout: 1500"
-              position="0 0 -1"
-              geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.015"
-              material="color: white; shader: flat; opacity: 0.5"
-              raycaster="objects: .clickable, .grabbable; far: 10"
+              position="0 0 -1.5"
+              raycaster="objects: .clickable, .grabbable; far: 15"
               visible="true">
-              <a-animation 
-                 begin="fusing" 
-                 easing="ease-in" 
-                 attribute="scale"
-                 fill="backwards"
-                 from="1 1 1"
-                 to="0.2 0.2 0.2"
-                 dur="1500">
-              </a-animation>
+              
+              <!-- Outer ring (visible) -->
+              <a-ring 
+                 radius-inner="0.015" 
+                 radius-outer="0.025"
+                 material="color: #2196F3; shader: flat; opacity: 0.8"
+                 rotation="0 0 0">
+              </a-ring>
+              
+              <!-- Inner dot (center point) -->
+              <a-circle 
+                 radius="0.008"
+                 material="color: white; shader: flat; opacity: 0.9">
+              </a-circle>
+              
+              <!-- Fuse timer animation -->
+              <a-ring 
+                 id="fuse-ring"
+                 radius-inner="0.025" 
+                 radius-outer="0.035"
+                 material="color: #00ff00; shader: flat; opacity: 0; transparent: true"
+                 theta-start="0"
+                 theta-length="0">
+                 <a-animation 
+                    begin="fusing" 
+                    easing="linear" 
+                    attribute="material.opacity"
+                    from="0"
+                    to="1"
+                    dur="1500">
+                 </a-animation>
+                 <a-animation 
+                    begin="fusing" 
+                    easing="linear" 
+                    attribute="geometry.thetaLength"
+                    from="0"
+                    to="360"
+                    dur="1500">
+                 </a-animation>
+                 <a-animation 
+                    begin="click" 
+                    easing="ease-out" 
+                    attribute="material.opacity"
+                    to="0"
+                    dur="200">
+                 </a-animation>
+              </a-ring>
            </a-entity>
         </a-entity>
         
@@ -480,7 +653,7 @@
            super-hands="colliderEvent: raycaster-intersection; colliderEventProperty: els; colliderEndEvent: raycaster-intersection-cleared; colliderEndEventProperty: clearedEls">
         </a-entity>
         
-        <!-- Vision Pro: Hand models-->
+        <!-- Vision Pro: Hand models (placeholder - would need hand-tracking component) -->
         <a-entity id="vision-pro-hands" visible="false">
           <!-- Hand tracking would be rendered here -->
         </a-entity>
