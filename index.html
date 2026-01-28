@@ -27,12 +27,10 @@
           const el = this.el;
           const camera = document.querySelector('#camera');
           
-          // on quest, use the thumbstick
+          // on quest, use A button to teleport
           if (isQuest) {
-            el.addEventListener('thumbstickmoved', (evt) => {
-              if (evt.detail.y < -0.5) {
-                this.teleportForward(camera);
-              }
+            el.addEventListener('abuttondown', () => {
+              this.teleportForward(camera);
             });
           }
           
@@ -85,7 +83,7 @@
           
           // Click to teleport
           this.el.addEventListener('click', () => {
-            console.log(`🚀 Teleporting to: ${data.targetX}, ${data.targetZ}`);
+            console.log('Teleporting to: ' + data.targetX + ', ' + data.targetZ);
             camera.object3D.position.x = data.targetX;
             camera.object3D.position.z = data.targetZ;
             
